@@ -61,7 +61,7 @@ Kafka目前主要作为一个分布式的发布订阅的消息系统使用，下
 因此，若一个group中的消费者数量大于分区数量，多于的消费者将不会收到任何消息。  
 ## 3. Kafka安装和使用
 ### 3.1 下载
-你可以在kafka官网 http://kafka.apache.org/downloads下载到最新的kafka安装包，选择下载二进制版本的tgz文件。  
+你可以在kafka官网 [http://kafka.apache.org/downloads](http://kafka.apache.org/downloads)下载到最新的kafka安装包，选择下载二进制版本的tgz文件。  
 ### 3.2 安装
 Kafka是使用scala编写的运行与jvm虚拟机上的程序，虽然也可以在windows上使用，但是kafka基本上是运行在linux服务器上，因此我们这里也使用linux来开始今天的实战。  
 首先确保你的机器上安装了jdk，kafka需要java运行环境，以前的kafka还需要zookeeper，新版的kafka已经内置了一个zookeeper环境，所以我们可以直接使用，说是安装，如果只需要进行最简单的尝试的话我们只需要解压到任意目录即可，这里我们将kafka压缩包解压到/usr/local目录。  
