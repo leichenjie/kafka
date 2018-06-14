@@ -83,7 +83,7 @@ server.properties kafka服务器的配置，此配置文件用来配置kafka服�
 ```
 echo ruok|nc localhost 2181
 ```  
-![3.4.1](images/3.4.1.png)
+![3.4.1](images/3.4.1.png)  
 2. 启动Kafka  
 进入kafka解压目录，输入
 ```
@@ -109,7 +109,7 @@ Kafka通过topic对同一类的数据进行管理，同一类的数据使用同�
 输入
 ```
 ./bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 -topic test --from-beginning
-```
+```  
 3. 创建一个生产者
 不要关闭消费者终端，打开一个新的终端，输入  
 ```
