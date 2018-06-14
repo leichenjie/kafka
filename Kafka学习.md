@@ -104,7 +104,7 @@ Kafka通过topic对同一类的数据进行管理，同一类的数据使用同�
 ```
 ./bin/kafka-topics.sh --list --zookeeper localhost:2181
 ```
-![3.5.1.2](images/3.5.1.2.png)    
+![3.5.1.2](images/3.5.1.2.png)  
 2. 创建一个消费者
 输入
 ```
@@ -119,18 +119,193 @@ Kafka通过topic对同一类的数据进行管理，同一类的数据使用同�
 ![3.5.3.1](images/3.5.3.1.png)    
 发送完消息后，可以回到我们的消费者终端，可以看到，终端已经打印了我们刚才发送的消息
 ![3.5.3.2](images/3.5.3.2.png)    
+## 4. java示例
+生产者示例代码
+```
+package com.leicj.demo1;
 
+import kafka.javaapi.producer.Producer;
+import kafka.producer.KeyedMessage;
+import kafka.producer.ProducerConfig;
 
+import java.util.Date;
+import java.util.Properties;
 
+public class ProducerDemo {
+    public static void main(String[] args) {
+        int events = 100;
+        //设置配置属性
+        Properties props = new Properties();
+        props.put("metadata.broker.list","192.168.133.129:9092");
+        props.put("serializer.class","kafka.serializer.StringEncoder");
+        props.put("key.serializer.class","kafka.serializer.StringEncoder");
+        //可选配置，如果不配置，则使用默认的partitioner
+        props.put("partitioner.class","com.leicj.demo1.PartitionerDemo");
+        //触发acknowledgement机制，否则是fire and forget，可能会引起数据丢失
+        props.put("request.required.acks","1");
+        ProducerConfig config = new ProducerConfig(props);
+        //创建producer
+        Producer<String,String> producer = new Producer<String, String>(config);
+        long start = System.currentTimeMillis();
+        for (long i = 0; i < events; i++) {
+            long runtime = new Date().getTime();
+            String ip = "192.168.133.129";
+            String msg = runtime + ",www.test.com," + ip;
+            //如果topic不存在，则会自动创建，默认replication-factor为1，partitions为0
+            KeyedMessage<String,String> data = new KeyedMessage<String, String>("test",ip,msg);
+            producer.send(data);
+        }
+        System.out.println("耗时: " + (System.currentTimeMillis() - start));
+        producer.close();
+    }
+}
+```
+Partitioning Code
+```
+package com.leicj.demo1;
 
+import kafka.producer.Partitioner;
+import kafka.utils.VerifiableProperties;
 
+public class PartitionerDemo implements Partitioner {
 
+    public PartitionerDemo(VerifiableProperties props) {}
 
+    @Override
+    public int partition(Object obj, int numPartitions) {
+        int partition = 0;
+        if (obj instanceof String) {
+            String key = (String)obj;
+            int offset = key.lastIndexOf('.');
+            if (offset > 0) {
+                partition = Integer.parseInt(key.substring(offset + 1)) % numPartitions;
+            }
+        }else {
+            partition = obj.toString().length() % numPartitions;
+        }
+        return partition;
+    }
+}
+```
+消费者代码示例
+```
+package com.leicj.demo1;
 
+import kafka.consumer.Consumer;
+import kafka.consumer.ConsumerConfig;
+import kafka.consumer.KafkaStream;
+import kafka.javaapi.consumer.ConsumerConnector;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class ConsumerDemo {
+    private final ConsumerConnector consumer;
+    private final String topic;
+    private ExecutorService executor;
+    public ConsumerDemo(String a_zookeeper, String a_groupId, String a_topic) {
+        consumer = Consumer.createJavaConsumerConnector(createConsumerConfig(a_zookeeper,a_groupId));
+        this.topic = a_topic;
+    }
+
+    public void shutdown() {
+        if (consumer != null) {
+            consumer.shutdown();
+        }
+        if (executor != null) {
+            executor.shutdown();
+        }
+    }
+
+    public void run(int numThreads) {
+        Map<String,Integer> topicCountMap = new HashMap<String, Integer>();
+        topicCountMap.put(topic, new Integer(numThreads));
+        Map<String, List<KafkaStream<byte[],byte[]>>> consumerMap = consumer.createMessageStreams(topicCountMap);
+        List<KafkaStream<byte[],byte[]>> streams = consumerMap.get(topic);
+        //now launch all the threads
+        executor = Executors.newFixedThreadPool(numThreads);
+        //now create an object to consume the messages
+        int threadNumber = 0;
+        for (final KafkaStream stream : streams) {
+            executor.submit(new ConsumerMsgTask(stream,threadNumber));
+            threadNumber++;
+        }
+    }
+
+    private static ConsumerConfig createConsumerConfig(String a_zookeeper, String a_groupId) {
+        Properties props = new Properties();
+        props.put("zookeeper.connect",a_zookeeper);
+        props.put("group.id",a_groupId);
+        props.put("zookeeper.session.timeout.ms","400");
+        props.put("zookeeper.sync.time.ms","200");
+        props.put("auto.commit.interval.ms","1000");
+        return new ConsumerConfig(props);
+    }
+
+    public static void main(String[] arg) {
+        String[] args = { "192.168.133.129:2181", "0", "test", "10" };
+        String zooKeeper = args[0];
+        String groupId = args[1];
+        String topic = args[2];
+        int threads = Integer.parseInt(args[3]);
+
+        ConsumerDemo demo = new ConsumerDemo(zooKeeper, groupId, topic);
+        demo.run(threads);
+
+        try {
+            Thread.sleep(10000);
+        } catch (InterruptedException ie) {
+
+        }
+        demo.shutdown();
+    }
+}
+```
+```
+package com.leicj.demo1;
+
+import kafka.consumer.ConsumerIterator;
+import kafka.consumer.KafkaStream;
+
+public class ConsumerMsgTask implements Runnable {
+    private KafkaStream m_stream;
+    private int m_threadNumber;
+
+    public ConsumerMsgTask(KafkaStream m_stream, int m_threadNumber) {
+        this.m_stream = m_stream;
+        this.m_threadNumber = m_threadNumber;
+    }
+
+    @Override
+    public void run() {
+        ConsumerIterator<byte[],byte[]> it = m_stream.iterator();
+        while (it.hasNext()) {
+            System.out.println("Thread " + m_threadNumber + ":" + new String(it.next().message()));
+        }
+        System.out.println("Shutting down Thread: " + m_threadNumber);
+    }
+}
+```
+###代码示例问题分析
+在执行ProducerDemo.Main()方法时，出现“kafka.common.FailedToSendMessageException: Failed to send messages after 3 tries.”错误
+![4.1](images\4.1.png)
+排查步骤:
+1. 首先确认集群使用命令的方式发送和消费正常。
+2. 缺少配置监听地址,在config/server.properties中设置listeners地址，如：  
+listeners=PLAINTEXT://192.168.133.129:9092（注意：尽量用ip）
+3. 确认应用程序所在机器连接到kafka集群是畅通的。（例如：telnet 192.168.133.129 9092）
+4. 应用程序调用kafka集群的端口写错了，不是2181，是9092。（有的人分不清broker和zookeeper的端口号）
+5. 配置修改后，没有重启kafka集群。
 
 
 ## 参考
 1. https://blog.csdn.net/qq_24084925/article/details/78842844
+2. http://orchome.com/342
+3. http://www.importnew.com/24677.html
 
 
 
