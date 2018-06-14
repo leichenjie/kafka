@@ -290,10 +290,10 @@ public class ConsumerMsgTask implements Runnable {
     }
 }
 ```
-###代码示例问题分析
+### 代码示例问题分析
 在执行ProducerDemo.Main()方法时，出现“kafka.common.FailedToSendMessageException: Failed to send messages after 3 tries.”错误
-![4.1](images\4.1.png)
-排查步骤:
+![4.1](images/4.1.png)
+排查步骤:  
 1. 首先确认集群使用命令的方式发送和消费正常。
 2. 缺少配置监听地址,在config/server.properties中设置listeners地址，如：  
 listeners=PLAINTEXT://192.168.133.129:9092（注意：尽量用ip）
